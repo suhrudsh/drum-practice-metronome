@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState, useCallback } from 'react'
+import { useEffect, useRef, useState, useCallback } from "react";
 
-const LOOKAHEAD_MS = 25
-const SCHEDULE_AHEAD_SEC = 0.12
+const LOOKAHEAD_MS = 25;
+const SCHEDULE_AHEAD_SEC = 0.12;
 
 /**
  * Web Audio lookahead-scheduler metronome.
@@ -14,101 +14,119 @@ const SCHEDULE_AHEAD_SEC = 0.12
  * setTimeout to land at the same moment as that beat's click — the caller
  * uses it to drive visuals imperatively (see PendulumStage).
  */
-export function useMetronome({ tempo, speedMultiplier, numerator, volume, onBeat }) {
-  const [isPlaying, setIsPlaying] = useState(false)
-  const [elapsedMs, setElapsedMs] = useState(0)
+export function useMetronome({
+  tempo,
+  speedMultiplier,
+  numerator,
+  volume = 1,
+  onBeat,
+}) {
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [elapsedMs, setElapsedMs] = useState(0);
 
-  const audioCtxRef = useRef(null)
-  const masterGainRef = useRef(null)
-  const schedulerIdRef = useRef(null)
-  const nextNoteTimeRef = useRef(0)
-  const currentBeatRef = useRef(0)
-  const elapsedIntervalRef = useRef(null)
-  const startTimestampRef = useRef(0)
+  const audioCtxRef = useRef(null);
+  const masterGainRef = useRef(null);
+  const schedulerIdRef = useRef(null);
+  const nextNoteTimeRef = useRef(0);
+  const currentBeatRef = useRef(0);
+  const elapsedIntervalRef = useRef(null);
+  const startTimestampRef = useRef(0);
 
-  const tempoRef = useRef(tempo)
-  const speedRef = useRef(speedMultiplier)
-  const numeratorRef = useRef(numerator)
-  const onBeatRef = useRef(onBeat)
+  const tempoRef = useRef(tempo);
+  const speedRef = useRef(speedMultiplier);
+  const numeratorRef = useRef(numerator);
+  const onBeatRef = useRef(onBeat);
 
-  useEffect(() => { tempoRef.current = tempo }, [tempo])
-  useEffect(() => { speedRef.current = speedMultiplier }, [speedMultiplier])
-  useEffect(() => { onBeatRef.current = onBeat }, [onBeat])
   useEffect(() => {
-    numeratorRef.current = numerator
-    currentBeatRef.current = currentBeatRef.current % numerator
-  }, [numerator])
+    tempoRef.current = tempo;
+  }, [tempo]);
   useEffect(() => {
-    if (masterGainRef.current) masterGainRef.current.gain.value = volume
-  }, [volume])
+    speedRef.current = speedMultiplier;
+  }, [speedMultiplier]);
+  useEffect(() => {
+    onBeatRef.current = onBeat;
+  }, [onBeat]);
+  useEffect(() => {
+    numeratorRef.current = numerator;
+    currentBeatRef.current = currentBeatRef.current % numerator;
+  }, [numerator]);
+  useEffect(() => {
+    if (masterGainRef.current) masterGainRef.current.gain.value = volume;
+  }, [volume]);
 
-  const effectiveBpm = () => tempoRef.current * speedRef.current
-  const beatDuration = () => 60 / effectiveBpm()
+  const effectiveBpm = () => tempoRef.current * speedRef.current;
+  const beatDuration = () => 60 / effectiveBpm();
 
   const playClick = useCallback((time, isDownbeat) => {
-    const ctx = audioCtxRef.current
-    const osc = ctx.createOscillator()
-    const gainNode = ctx.createGain()
-    osc.connect(gainNode)
-    gainNode.connect(masterGainRef.current)
-    osc.type = 'sine'
-    osc.frequency.value = isDownbeat ? 1600 : 1000
-    gainNode.gain.setValueAtTime(0.0001, time)
-    gainNode.gain.exponentialRampToValueAtTime(1, time + 0.002)
-    gainNode.gain.exponentialRampToValueAtTime(0.0001, time + 0.045)
-    osc.start(time)
-    osc.stop(time + 0.06)
-  }, [])
+    const ctx = audioCtxRef.current;
+    const osc = ctx.createOscillator();
+    const gainNode = ctx.createGain();
+    osc.connect(gainNode);
+    gainNode.connect(masterGainRef.current);
+    osc.type = "sine";
+    osc.frequency.value = isDownbeat ? 1600 : 1000;
+    gainNode.gain.setValueAtTime(0.0001, time);
+    gainNode.gain.exponentialRampToValueAtTime(1, time + 0.002);
+    gainNode.gain.exponentialRampToValueAtTime(0.0001, time + 0.045);
+    osc.start(time);
+    osc.stop(time + 0.06);
+  }, []);
 
-  const scheduleNote = useCallback((beatIndex, time) => {
-    playClick(time, beatIndex === 0)
-    const delayMs = Math.max(0, (time - audioCtxRef.current.currentTime) * 1000)
-    setTimeout(() => onBeatRef.current?.(beatIndex), delayMs)
-  }, [playClick])
+  const scheduleNote = useCallback(
+    (beatIndex, time) => {
+      playClick(time, beatIndex === 0);
+      const delayMs = Math.max(
+        0,
+        (time - audioCtxRef.current.currentTime) * 1000,
+      );
+      setTimeout(() => onBeatRef.current?.(beatIndex), delayMs);
+    },
+    [playClick],
+  );
 
   const scheduler = useCallback(() => {
-    const ctx = audioCtxRef.current
+    const ctx = audioCtxRef.current;
     while (nextNoteTimeRef.current < ctx.currentTime + SCHEDULE_AHEAD_SEC) {
-      scheduleNote(currentBeatRef.current, nextNoteTimeRef.current)
-      nextNoteTimeRef.current += beatDuration()
-      currentBeatRef.current = (currentBeatRef.current + 1) % numeratorRef.current
+      scheduleNote(currentBeatRef.current, nextNoteTimeRef.current);
+      nextNoteTimeRef.current += beatDuration();
+      currentBeatRef.current =
+        (currentBeatRef.current + 1) % numeratorRef.current;
     }
-    schedulerIdRef.current = setTimeout(scheduler, LOOKAHEAD_MS)
-  }, [scheduleNote])
+    schedulerIdRef.current = setTimeout(scheduler, LOOKAHEAD_MS);
+  }, [scheduleNote]);
 
   const start = useCallback(() => {
-    if (isPlaying) return
+    if (isPlaying) return;
 
     if (!audioCtxRef.current) {
-      const AudioCtx = window.AudioContext || window.webkitAudioContext
-      audioCtxRef.current = new AudioCtx()
-      masterGainRef.current = audioCtxRef.current.createGain()
-      masterGainRef.current.gain.value = volume
-      masterGainRef.current.connect(audioCtxRef.current.destination)
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      audioCtxRef.current = new AudioCtx();
+      masterGainRef.current = audioCtxRef.current.createGain();
+      masterGainRef.current.gain.value = volume;
+      masterGainRef.current.connect(audioCtxRef.current.destination);
     }
-    if (audioCtxRef.current.state === 'suspended') audioCtxRef.current.resume()
+    if (audioCtxRef.current.state === "suspended") audioCtxRef.current.resume();
 
-    currentBeatRef.current = 0
-    nextNoteTimeRef.current = audioCtxRef.current.currentTime + 0.05
-    scheduler()
+    currentBeatRef.current = 0;
+    nextNoteTimeRef.current = audioCtxRef.current.currentTime + 0.05;
+    scheduler();
 
-    startTimestampRef.current = Date.now()
-    setElapsedMs(0)
+    startTimestampRef.current = Date.now();
+    setElapsedMs(0);
     elapsedIntervalRef.current = setInterval(() => {
-      setElapsedMs(Date.now() - startTimestampRef.current)
-    }, 250)
+      setElapsedMs(Date.now() - startTimestampRef.current);
+    }, 250);
 
-    setIsPlaying(true)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isPlaying, scheduler, volume])
+    setIsPlaying(true);
+  }, [isPlaying, scheduler, volume]);
 
   const stop = useCallback(() => {
-    clearTimeout(schedulerIdRef.current)
-    clearInterval(elapsedIntervalRef.current)
-    setIsPlaying(false)
-  }, [])
+    clearTimeout(schedulerIdRef.current);
+    clearInterval(elapsedIntervalRef.current);
+    setIsPlaying(false);
+  }, []);
 
-  useEffect(() => () => stop(), [stop])
+  useEffect(() => () => stop(), [stop]);
 
-  return { isPlaying, elapsedMs, start, stop, currentBeatRef, beatDuration }
+  return { isPlaying, elapsedMs, start, stop, currentBeatRef, beatDuration };
 }

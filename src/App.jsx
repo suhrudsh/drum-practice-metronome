@@ -6,14 +6,12 @@ import TempoControl from "./components/TempoControl";
 import SpeedControl from "./components/SpeedControl";
 import { SPEED_OPTIONS } from "./constants/speed";
 import TimeSignatureControl from "./components/TimeSignatureControl";
-import VolumeControl from "./components/VolumeControl";
 
 export default function App() {
   const [tempo, setTempo] = useState(120);
   const [speedKey, setSpeedKey] = useState("normal");
   const [numerator, setNumerator] = useState(4);
   const [denominator, setDenominator] = useState(4);
-  const [volume, setVolume] = useState(0.7);
 
   const speedMultiplier = SPEED_OPTIONS.find(
     (o) => o.key === speedKey,
@@ -28,7 +26,6 @@ export default function App() {
     tempo,
     speedMultiplier,
     numerator,
-    volume,
     onBeat: handleBeat,
   });
 
@@ -81,13 +78,12 @@ export default function App() {
               onNumeratorChange={setNumerator}
               onDenominatorChange={setDenominator}
             />
-            <VolumeControl volume={volume} onChange={setVolume} />
           </div>
         </div>
 
         <p className="text-faint mt-5 text-center font-mono text-[10px] tracking-wide lg:mt-7">
-          clicks stay locked to the audio clock — safe to change tempo, speed or
-          volume mid-session
+          clicks stay locked to the audio clock — safe to change tempo, or speed
+          mid-session
         </p>
       </div>
     </div>
