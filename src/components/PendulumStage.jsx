@@ -1,12 +1,12 @@
-import { forwardRef, useImperativeHandle, useRef, useEffect } from 'react'
+import { useImperativeHandle, useRef, useEffect } from "react";
 
-const ARM_ANGLE = 32
-const WEIGHT_SHADOW_REST = 'drop-shadow(0 0 4px rgba(225,89,47,0.5))'
-const WEIGHT_SHADOW_FLASH = 'drop-shadow(0 0 9px rgba(225,89,47,0.9))'
-const PIVOT = { x: 130, y: 128 }
+const ARM_ANGLE = 32;
+const WEIGHT_SHADOW_REST = "drop-shadow(0 0 4px rgba(225,89,47,0.5))";
+const WEIGHT_SHADOW_FLASH = "drop-shadow(0 0 9px rgba(225,89,47,0.9))";
+const PIVOT = { x: 130, y: 128 };
 
 // Which side a given beat index sits on. Beat 0 (the downbeat) is always left.
-const sideFor = (beatIndex) => (beatIndex % 2 === 0 ? -1 : 1)
+const sideFor = (beatIndex) => (beatIndex % 2 === 0 ? -1 : 1);
 
 /**
  * Pendulum arm + beat dots.
@@ -22,102 +22,108 @@ const sideFor = (beatIndex) => (beatIndex % 2 === 0 ? -1 : 1)
  * state would add a render in the critical path and risk visible jitter.
  * Direct DOM writes keep the animation locked to audio time.
  */
-const PendulumStage = forwardRef(function PendulumStage({ numerator, getBeatDuration }, ref) {
-  const armGroupRef = useRef(null)
-  const weightRef = useRef(null)
-  const dotRefs = useRef([])
-  const reducedMotionRef = useRef(false)
+export default function PendulumStage({ numerator, beatDuration, ref }) {
+  const armGroupRef = useRef(null);
+  const weightRef = useRef(null);
+  const dotRefs = useRef([]);
+  const reducedMotionRef = useRef(false);
 
   useEffect(() => {
-    reducedMotionRef.current = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-  }, [])
+    reducedMotionRef.current = window.matchMedia(
+      "(prefers-reduced-motion: reduce)",
+    ).matches;
+  }, []);
 
   const positionArmInstant = (beatIndex) => {
-    const group = armGroupRef.current
-    if (!group) return
-    group.style.transitionDuration = '0s'
-    group.style.transform = `rotate(${ARM_ANGLE * sideFor(beatIndex)}deg)`
-    void group.getBoundingClientRect() // force reflow so the next transition doesn't merge with this snap
-  }
+    const group = armGroupRef.current;
+    if (!group) return;
+    group.style.transitionDuration = "0s";
+    group.style.transform = `rotate(${ARM_ANGLE * sideFor(beatIndex)}deg)`;
+    void group.getBoundingClientRect(); // force reflow so the next transition doesn't merge with this snap
+  };
 
   const highlightDot = (beatIndex) => {
     dotRefs.current.forEach((dot, i) => {
-      if (!dot) return
+      if (!dot) return;
       // bg-line/border-line and bg-brass/bg-ember are same-specificity
       // single-class selectors — leaving both on an element lets source
       // order (not which was added last) decide the winner. So the resting
       // color classes must be explicitly removed, not just left in place.
       dot.classList.remove(
-        'bg-line', 'border-line',
-        'bg-brass', 'border-brass',
-        'bg-ember', 'border-ember',
-        'scale-110'
-      )
+        "bg-line",
+        "border-line",
+        "bg-brass",
+        "border-brass",
+        "bg-ember",
+        "border-ember",
+        "scale-110",
+      );
       if (i !== beatIndex) {
-        dot.classList.add('bg-line', 'border-line')
-        return
+        dot.classList.add("bg-line", "border-line");
+        return;
       }
-      dot.classList.add('scale-110')
-      if (beatIndex === 0) dot.classList.add('bg-ember', 'border-ember')
-      else dot.classList.add('bg-brass', 'border-brass')
-    })
-  }
+      dot.classList.add("scale-110");
+      if (beatIndex === 0) dot.classList.add("bg-ember", "border-ember");
+      else dot.classList.add("bg-brass", "border-brass");
+    });
+  };
 
   useImperativeHandle(
     ref,
     () => ({
       // Called once per beat, at the same moment that beat's click sounds.
       onBeat(beatIndex) {
-        highlightDot(beatIndex)
+        highlightDot(beatIndex);
 
         if (!reducedMotionRef.current && armGroupRef.current) {
           // Snap to this beat's side (should already be here from the
           // previous beat's animation), then animate toward the *next*
           // beat's side so the arm lands exactly when it clicks.
-          positionArmInstant(beatIndex)
-          const nextBeatIndex = (beatIndex + 1) % numerator
-          armGroupRef.current.style.transitionDuration = `${getBeatDuration()}s`
-          armGroupRef.current.style.transform = `rotate(${ARM_ANGLE * sideFor(nextBeatIndex)}deg)`
+          positionArmInstant(beatIndex);
+          const nextBeatIndex = (beatIndex + 1) % numerator;
+          armGroupRef.current.style.transitionDuration = `${beatDuration()}s`;
+          armGroupRef.current.style.transform = `rotate(${ARM_ANGLE * sideFor(nextBeatIndex)}deg)`;
         }
 
         if (beatIndex === 0 && weightRef.current) {
-          weightRef.current.style.filter = WEIGHT_SHADOW_FLASH
+          weightRef.current.style.filter = WEIGHT_SHADOW_FLASH;
           setTimeout(() => {
-            if (weightRef.current) weightRef.current.style.filter = WEIGHT_SHADOW_REST
-          }, 90)
+            if (weightRef.current)
+              weightRef.current.style.filter = WEIGHT_SHADOW_REST;
+          }, 90);
         }
       },
       // Pre-position the arm at the downbeat's side before the first click,
       // so it isn't caught mid-swing when playback starts.
       prepareStart() {
-        positionArmInstant(0)
+        positionArmInstant(0);
       },
       reset() {
-        highlightDot(-1)
+        highlightDot(-1);
         if (armGroupRef.current) {
-          armGroupRef.current.style.transitionDuration = '0s'
-          armGroupRef.current.style.transform = 'rotate(0deg)'
+          armGroupRef.current.style.transitionDuration = "0s";
+          armGroupRef.current.style.transform = "rotate(0deg)";
         }
       },
     }),
-    [numerator, getBeatDuration]
-  )
+    [numerator, beatDuration],
+  );
 
   return (
     <div className="w-full">
-      <div className="flex justify-center gap-2 mb-2 min-h-[10px]">
+      <div className="mb-2 flex min-h-2.5 justify-center gap-2">
         {Array.from({ length: numerator }).map((_, i) => (
           <div
             key={i}
             ref={(el) => (dotRefs.current[i] = el)}
-            className="w-2 h-2 rounded-full bg-line border border-line transition-transform duration-75"
+            className="bg-line border-line h-2 w-2 rounded-full border transition-transform duration-75"
           />
         ))}
       </div>
 
       <svg
         viewBox="0 0 260 140"
-        className="block w-full h-auto max-w-[260px] mx-auto"
+        className="mx-auto block h-auto w-full max-w-65"
         aria-hidden="true"
       >
         <defs>
@@ -154,7 +160,7 @@ const PendulumStage = forwardRef(function PendulumStage({ numerator, getBeatDura
             height={118}
             rx={1.5}
             fill="url(#armGrad)"
-            style={{ filter: 'drop-shadow(0 0 5px rgba(201,161,91,0.25))' }}
+            style={{ filter: "drop-shadow(0 0 5px rgba(201,161,91,0.25))" }}
           />
           <rect
             ref={weightRef}
@@ -171,7 +177,5 @@ const PendulumStage = forwardRef(function PendulumStage({ numerator, getBeatDura
         <circle cx={PIVOT.x} cy={PIVOT.y} r={7} fill="url(#pivotGrad)" />
       </svg>
     </div>
-  )
-})
-
-export default PendulumStage
+  );
+}
