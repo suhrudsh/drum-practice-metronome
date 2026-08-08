@@ -8,24 +8,17 @@ const SCHEDULE_AHEAD_SEC = 0.12;
  *
  * Clicks are scheduled on the audio clock (not setInterval), so timing stays
  * accurate regardless of React render timing or tab throttling. Live params
- * (tempo, speedMultiplier, numerator, volume) are mirrored into refs so the
+ * (tempo, speedMultiplier, numerator) are mirrored into refs so the
  * running scheduler loop always reads the latest value without needing to
  * restart. `onBeat(beatIndex, audioTime)` fires once per beat, scheduled via
  * setTimeout to land at the same moment as that beat's click — the caller
  * uses it to drive visuals imperatively (see PendulumStage).
  */
-export function useMetronome({
-  tempo,
-  speedMultiplier,
-  numerator,
-  volume = 1,
-  onBeat,
-}) {
+export function useMetronome({ tempo, speedMultiplier, numerator, onBeat }) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [elapsedMs, setElapsedMs] = useState(0);
 
   const audioCtxRef = useRef(null);
-  const masterGainRef = useRef(null);
   const schedulerIdRef = useRef(null);
   const nextNoteTimeRef = useRef(0);
   const currentBeatRef = useRef(0);
@@ -50,9 +43,6 @@ export function useMetronome({
     numeratorRef.current = numerator;
     currentBeatRef.current = currentBeatRef.current % numerator;
   }, [numerator]);
-  useEffect(() => {
-    if (masterGainRef.current) masterGainRef.current.gain.value = volume;
-  }, [volume]);
 
   const effectiveBpm = () => tempoRef.current * speedRef.current;
   const beatDuration = () => 60 / effectiveBpm();
@@ -62,7 +52,7 @@ export function useMetronome({
     const osc = ctx.createOscillator();
     const gainNode = ctx.createGain();
     osc.connect(gainNode);
-    gainNode.connect(masterGainRef.current);
+    gainNode.connect(ctx.destination);
     osc.type = "sine";
     osc.frequency.value = isDownbeat ? 1600 : 1000;
     gainNode.gain.setValueAtTime(0.0001, time);
@@ -101,9 +91,6 @@ export function useMetronome({
     if (!audioCtxRef.current) {
       const AudioCtx = window.AudioContext || window.webkitAudioContext;
       audioCtxRef.current = new AudioCtx();
-      masterGainRef.current = audioCtxRef.current.createGain();
-      masterGainRef.current.gain.value = volume;
-      masterGainRef.current.connect(audioCtxRef.current.destination);
     }
     if (audioCtxRef.current.state === "suspended") audioCtxRef.current.resume();
 
@@ -118,7 +105,7 @@ export function useMetronome({
     }, 250);
 
     setIsPlaying(true);
-  }, [isPlaying, scheduler, volume]);
+  }, [isPlaying, scheduler]);
 
   const stop = useCallback(() => {
     clearTimeout(schedulerIdRef.current);
