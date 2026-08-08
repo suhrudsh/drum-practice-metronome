@@ -22,21 +22,40 @@ export default function App() {
     pendulumRef.current?.onBeat(beatIndex);
   }, []);
 
-  const { isPlaying, elapsedMs, start, stop, beatDuration } = useMetronome({
+  const {
+    isPlaying,
+    isPaused,
+    elapsedMs,
+    start,
+    stop,
+    pause,
+    resume,
+    beatDuration,
+  } = useMetronome({
     tempo,
     speedMultiplier,
     numerator,
     onBeat: handleBeat,
   });
 
-  const handleToggle = () => {
-    if (isPlaying) {
-      stop();
-      pendulumRef.current?.reset();
-    } else {
-      pendulumRef.current?.prepareStart();
-      start();
-    }
+  const handleStart = () => {
+    pendulumRef.current?.prepareStart();
+    start();
+  };
+
+  const handleStop = () => {
+    stop();
+    pendulumRef.current?.reset();
+  };
+
+  const handlePause = () => {
+    pause();
+    pendulumRef.current?.reset();
+  };
+
+  const handleResume = () => {
+    pendulumRef.current?.prepareStart();
+    resume();
   };
 
   return (
@@ -60,8 +79,12 @@ export default function App() {
             </div>
             <Transport
               isPlaying={isPlaying}
+              isPaused={isPaused}
               elapsedMs={elapsedMs}
-              onToggle={handleToggle}
+              onStart={handleStart}
+              onStop={handleStop}
+              onPause={handlePause}
+              onResume={handleResume}
             />
           </div>
 

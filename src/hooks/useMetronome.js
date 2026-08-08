@@ -17,6 +17,7 @@ const SCHEDULE_AHEAD_SEC = 0.12;
 export function useMetronome({ tempo, speedMultiplier, numerator, onBeat }) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [elapsedMs, setElapsedMs] = useState(0);
+  const [isPaused, setIsPaused] = useState(false);
 
   const audioCtxRef = useRef(null);
   const schedulerIdRef = useRef(null);
@@ -24,6 +25,7 @@ export function useMetronome({ tempo, speedMultiplier, numerator, onBeat }) {
   const currentBeatRef = useRef(0);
   const elapsedIntervalRef = useRef(null);
   const startTimestampRef = useRef(0);
+  const pausedElapsedRef = useRef(0);
 
   const tempoRef = useRef(tempo);
   const speedRef = useRef(speedMultiplier);
@@ -105,6 +107,41 @@ export function useMetronome({ tempo, speedMultiplier, numerator, onBeat }) {
     }, 250);
 
     setIsPlaying(true);
+    setIsPaused(false);
+  }, [isPlaying, scheduler]);
+
+  const pause = useCallback(() => {
+    if (!audioCtxRef.current || !isPlaying) return;
+    // capture elapsed time so the session display can resume later
+    pausedElapsedRef.current = Date.now() - startTimestampRef.current;
+    clearTimeout(schedulerIdRef.current);
+    clearInterval(elapsedIntervalRef.current);
+    // suspend audio processing so sounds stop immediately
+    if (audioCtxRef.current.state === "running") audioCtxRef.current.suspend();
+    setIsPlaying(false);
+    setIsPaused(true);
+  }, [isPlaying]);
+
+  const resume = useCallback(() => {
+    if (!audioCtxRef.current || isPlaying) return;
+    // resume the audio context
+    if (audioCtxRef.current.state === "suspended") audioCtxRef.current.resume();
+
+    // restore elapsed time and continue the interval without resetting to zero
+    startTimestampRef.current = Date.now() - pausedElapsedRef.current;
+    setElapsedMs(pausedElapsedRef.current);
+    elapsedIntervalRef.current = setInterval(() => {
+      setElapsedMs(Date.now() - startTimestampRef.current);
+    }, 250);
+
+    // Reset beat position to start (user requested behavior)
+    currentBeatRef.current = 0;
+    nextNoteTimeRef.current = audioCtxRef.current.currentTime + 0.05;
+    scheduler();
+
+    setIsPlaying(true);
+    setIsPaused(false);
+    pausedElapsedRef.current = 0;
   }, [isPlaying, scheduler]);
 
   const stop = useCallback(() => {
@@ -115,5 +152,15 @@ export function useMetronome({ tempo, speedMultiplier, numerator, onBeat }) {
 
   useEffect(() => () => stop(), [stop]);
 
-  return { isPlaying, elapsedMs, start, stop, currentBeatRef, beatDuration };
+  return {
+    isPlaying,
+    isPaused,
+    elapsedMs,
+    start,
+    stop,
+    pause,
+    resume,
+    currentBeatRef,
+    beatDuration,
+  };
 }
